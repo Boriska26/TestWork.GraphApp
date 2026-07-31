@@ -29,6 +29,8 @@ namespace TestWork.GraphApp.NCad.Objects
                 TryGetNodePosition(_secondNodeId, out Point3d p2))
             {
                 dc.Color = McDbEntity.ByObject;
+                dc.LineWidth = DbEntity.LineWeight;
+                dc.LineType = DbEntity.LineType;
                 dc.DrawPolyline(new[] { p1, p2 });
             }
         }
@@ -86,5 +88,24 @@ namespace TestWork.GraphApp.NCad.Objects
         }
 
         public bool IsIncidentTo(Guid nodeId) => _firstNodeId == nodeId || _secondNodeId == nodeId;
+
+        public static void ApplyStyleToAllEdges(Color color, int lineWeight, int lineType)
+        {
+            var filter = ObjectFilter.Create(true);
+            filter.AddType(typeof(GraphEdge));
+            var ids = McObjectManager.SelectObjects(filter);
+
+            foreach (var id in ids)
+            {
+                if (id.GetObject() is GraphEdge edge)
+                {
+                    edge.TryModify(1);
+                    edge.DbEntity.Color = color;
+                    edge.DbEntity.LineType = lineType;
+                    edge.DbEntity.LineWeight = lineWeight;
+                    edge.DbEntity.Update();
+                }
+            }
+        }
     }
 }
