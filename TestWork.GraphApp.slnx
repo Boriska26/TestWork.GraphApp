@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="TestWork.GraphApp.Core.Tests/TestWork.GraphApp.Core.Tests.csproj" />
   <Project Path="TestWork.GraphApp.Core/TestWork.GraphApp.Core.csproj" />
   <Project Path="TestWork.GraphApp.NCad/TestWork.GraphApp.NCad.csproj" />
 </Solution>
