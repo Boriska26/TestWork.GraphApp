@@ -1,5 +1,6 @@
 ﻿using Multicad;
 using Multicad.CustomObjectBase;
+using Multicad.DatabaseServices;
 using Multicad.Geometry;
 using Multicad.Runtime;
 using System.Drawing;
@@ -7,7 +8,7 @@ using System.Drawing;
 namespace TestWork.GraphApp.NCad.Objects
 {
     [CustomEntity("C8D12A1F-3B9B-4D3E-91A2-8F0123456789", "GraphNode", "узел графа")]
-    public class GraphNode : McCustomBase
+    public class GraphNode : McCustomBase, IMcSerializable
     {
         private const double _radius = 5.0;
 
@@ -50,6 +51,7 @@ namespace TestWork.GraphApp.NCad.Objects
             {
                 obj.TryModify();
                 obj._position += offset;
+                obj.UpdateIncidentEdges();
             }));
 
             return true;
@@ -59,6 +61,7 @@ namespace TestWork.GraphApp.NCad.Objects
         {
             TryModify(1);
             _position = _position.TransformBy(tfm);
+            UpdateIncidentEdges();
         }
 
         public override void OnDraw(GeometryBuilder dc)
@@ -98,7 +101,7 @@ namespace TestWork.GraphApp.NCad.Objects
             info.Add("PosX", _position.X);
             info.Add("PosY", _position.Y);
             info.Add("PosZ", _position.Z);
-            return hresult.s_Ok;      // имя константы успеха сверь (s_Ok / e_Ok / Ok)
+            return hresult.s_Ok;
         }
 
         public override hresult OnMcDeserialization(McSerializationInfo info)
@@ -120,6 +123,21 @@ namespace TestWork.GraphApp.NCad.Objects
             _position = new Point3d(x, y, z);
 
             return hresult.s_Ok;
+        }
+
+        private void UpdateIncidentEdges()
+        {
+            var filter = ObjectFilter.Create(true);
+            filter.AddType(typeof(GraphEdge));
+            var ids = McObjectManager.SelectObjects(filter); 
+            foreach(var id in ids)
+            {
+                if(id.GetObject() is GraphEdge edge && edge.IsIncendentTo(_nodeId))
+                {
+                    edge.TryModify(1);
+                    edge.DbEntity.Update();
+                }
+            }
         }
     }
 }
