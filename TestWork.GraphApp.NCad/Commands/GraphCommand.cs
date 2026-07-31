@@ -1,10 +1,10 @@
-﻿using System;
-using HostMgd.ApplicationServices;
+﻿using HostMgd.ApplicationServices;
 using HostMgd.EditorInput;
+using Multicad.DatabaseServices;
 using Multicad.Runtime;
+using TestWork.GraphApp.NCad.Objects;
 using MGeo = Multicad.Geometry;
 using TGeo = Teigha.Geometry;
-using TestWork.GraphApp.NCad.Objects;
 
 namespace TestWork.GraphApp.NCad.Commands
 {
@@ -19,23 +19,36 @@ namespace TestWork.GraphApp.NCad.Commands
 
             Editor ed = doc.Editor;
 
-            // 1. Запросить точку у пользователя
             PromptPointResult res = ed.GetPoint("\nУкажите положение узла: ");
             if (res.Status != PromptStatus.OK)
                 return;
 
-            TGeo.Point3d tp = res.Value;                       // Teigha-точка
-            var pos = new MGeo.Point3d(tp.X, tp.Y, tp.Z);      // -> MultiCAD-точка
+            TGeo.Point3d tp = res.Value;
+            var pos = new MGeo.Point3d(tp.X, tp.Y, tp.Z);
 
-            // 2. Создать узел
             var node = new GraphNode
             {
                 Position = pos,
                 Shape = NodeShape.CircleBlue
             };
 
-            // 3. Добавить в чертёж — ЭТУ СТРОКУ СВЕРЬ ПО СВОЕЙ dll (см. ниже)
             node.DbEntity.AddToCurrentDocument();
+        }
+
+        [CommandMethod("GRAPHEDGE_TEST", CommandFlags.NoCheck)]
+        public void TestEdge()
+        {
+            var filter = ObjectFilter.Create(true);
+            filter.AddType(typeof(GraphNode));
+            var ids = McObjectManager.SelectObjects(filter);
+
+            if (ids.Count < 2) return;
+
+            var n1 = ids[0].GetObject() as GraphNode;
+            var n2 = ids[1].GetObject() as GraphNode;
+
+            var edge = new GraphEdge(n1.NodeId, n2.NodeId);
+            edge.DbEntity.AddToCurrentDocument();
         }
     }
 }
