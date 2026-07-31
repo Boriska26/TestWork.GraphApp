@@ -3,6 +3,7 @@ using Multicad.CustomObjectBase;
 using Multicad.DatabaseServices;
 using Multicad.Geometry;
 using Multicad.Runtime;
+using System.ComponentModel;
 using System.Drawing;
 
 namespace TestWork.GraphApp.NCad.Objects
@@ -28,13 +29,20 @@ namespace TestWork.GraphApp.NCad.Objects
             }
         }
 
+        [DisplayName("Форма узла")]
+        [Description("Тип узла: cний круг или красный треугольник")]
+        [Category("Граф")]
+        //TODO в палитре не показывается имя shape
         public NodeShape Shape
         {
             get => _shape;
             set
             {
+                if(!TryModify())
+                {
+                    return;
+                }
                 _shape = value;
-                DbEntity.Update();
             }
         }
 
@@ -132,10 +140,24 @@ namespace TestWork.GraphApp.NCad.Objects
             var ids = McObjectManager.SelectObjects(filter); 
             foreach(var id in ids)
             {
-                if(id.GetObject() is GraphEdge edge && edge.IsIncendentTo(_nodeId))
+                if(id.GetObject() is GraphEdge edge && edge.IsIncidentTo(_nodeId))
                 {
                     edge.TryModify(1);
                     edge.DbEntity.Update();
+                }
+            }
+        }
+
+        public override void OnErase()
+        {
+            var filter = ObjectFilter.Create(true);
+            filter.AddType(typeof(GraphEdge));
+            var ids = McObjectManager.SelectObjects(filter);
+            foreach (var id in ids)
+            {
+                if (id.GetObject() is GraphEdge edge && edge.IsIncidentTo(_nodeId))
+                {
+                    edge.DbEntity.Erase();
                 }
             }
         }

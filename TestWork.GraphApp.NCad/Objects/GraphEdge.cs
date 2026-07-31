@@ -28,7 +28,7 @@ namespace TestWork.GraphApp.NCad.Objects
             if (TryGetNodePosition(_firstNodeId, out Point3d p1) &&
                 TryGetNodePosition(_secondNodeId, out Point3d p2))
             {
-                dc.Color = Color.White;
+                dc.Color = McDbEntity.ByObject;
                 dc.DrawPolyline(new[] { p1, p2 });
             }
         }
@@ -85,6 +85,6 @@ namespace TestWork.GraphApp.NCad.Objects
             return hresult.s_Ok;
         }
 
-        public bool IsIncendentTo(Guid nodeId) => _firstNodeId == nodeId || _secondNodeId == nodeId;
+        public bool IsIncidentTo(Guid nodeId) => _firstNodeId == nodeId || _secondNodeId == nodeId;
     }
 }
