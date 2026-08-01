@@ -11,7 +11,7 @@ namespace TestWork.GraphApp.NCad.Objects
     [CustomEntity("C8D12A1F-3B9B-4D3E-91A2-8F0123456789", "GraphNode", "узел графа")]
     public class GraphNode : McCustomBase, IMcSerializable
     {
-        private const double _radius = 5.0;
+        public const double Radius = 5.0;
 
         private Guid _nodeId = Guid.NewGuid();
         private Point3d _position = Point3d.Origin;
@@ -89,15 +89,15 @@ namespace TestWork.GraphApp.NCad.Objects
         private void DrawCircleBlue(GeometryBuilder geometryBuilder)
         {
             geometryBuilder.Color = Color.Blue;
-            geometryBuilder.DrawCircle(_position, _radius);
+            geometryBuilder.DrawCircle(_position, Radius);
         }
 
         private void DrawTriangleRed(GeometryBuilder geometryBuilder)
         {
             geometryBuilder.Color = Color.Red;
-            var p1 = new Point3d(_position.X, _position.Y + _radius, _position.Z);
-            var p2 = new Point3d(_position.X - _radius, _position.Y - _radius * 0.6, _position.Z);
-            var p3 = new Point3d(_position.X + _radius, _position.Y - _radius * 0.6, _position.Z);
+            var p1 = new Point3d(_position.X, _position.Y + Radius, _position.Z);
+            var p2 = new Point3d(_position.X - Radius, _position.Y - Radius * 0.6, _position.Z);
+            var p3 = new Point3d(_position.X + Radius, _position.Y - Radius * 0.6, _position.Z);
 
             geometryBuilder.DrawPolyline(new[] { p1, p2, p3, p1 });
         }
