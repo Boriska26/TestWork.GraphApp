@@ -7,12 +7,16 @@ using TestWork.GraphApp.Core.Algoritms;
 using TestWork.GraphApp.Core.Models;
 using TestWork.GraphApp.NCad.Extensions;
 using TestWork.GraphApp.NCad.Objects;
+using TestWork.GraphApp.NCad.Services;
 using GraphNode = TestWork.GraphApp.NCad.Objects.GraphNode;
 
 namespace TestWork.GraphApp.NCad.Commands
 {
+
     public class GraphCommand
     {
+        private readonly GraphQuery _graphQuery = new GraphQuery();
+
         [CommandMethod("TW_FINDPATH", CommandFlags.NoCheck)]
         public void FindPath()
         {
@@ -156,24 +160,6 @@ namespace TestWork.GraphApp.NCad.Commands
             return edge;
         }
 
-        private GraphNode FindNodeNear(Point3d point, double captureRadius, Guid excludeNodeId)
-        {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphNode));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphNode node
-                    && node.NodeId != excludeNodeId
-                    && node.Position.DistanceTo(point) <= captureRadius)
-                {
-                    return node;
-                }
-            }
-
-            return null;
-        }
 
         private Graph BuildGraphFromDrawing()
         {
@@ -220,6 +206,7 @@ namespace TestWork.GraphApp.NCad.Commands
 
         private void BuildGraph(NodeShape shape)
         {
+            
             GraphNode previousNode = null;
 
             while (true)
@@ -265,8 +252,8 @@ namespace TestWork.GraphApp.NCad.Commands
 
                 Point3d point = res.Point;
 
-                GraphNode existing = FindNodeNear(point, GraphNode.Radius, ghostNode.NodeId);
-                GraphEdge edgeToSplit = FindEdgeNear(point, GraphNode.Radius, ghostEdge);
+                GraphNode existing = _graphQuery.FindNodeNear(point, GraphNode.Radius, ghostNode.NodeId);
+                GraphEdge edgeToSplit = _graphQuery.FindEdgeNear(point, GraphNode.Radius, ghostEdge);
 
                 if (existing != null && existing.NodeId != previousNode?.NodeId)
                 {
@@ -275,7 +262,7 @@ namespace TestWork.GraphApp.NCad.Commands
                     if (ghostEdge != null)
                     {
                         ghostEdge.DbEntity.Erase();
-                        if (!EdgeExists(previousNode.NodeId, existing.NodeId))
+                        if (!_graphQuery.EdgeExists(previousNode.NodeId, existing.NodeId))
                         {
                             CreateEdge(previousNode.NodeId, existing.NodeId);
                         }
@@ -287,9 +274,11 @@ namespace TestWork.GraphApp.NCad.Commands
                     Guid splitA = edgeToSplit.FirstNodeId;
                     Guid splitB = edgeToSplit.SecondNodeId;
 
-                    TryGetNodePosition(splitA, out Point3d pA);
-                    TryGetNodePosition(splitB, out Point3d pB);
-                    Point3d onEdge = Project(point, pA, pB);
+                    _graphQuery.TryGetNodePosition(splitA, out Point3d pA);
+                    _graphQuery.TryGetNodePosition(splitB, out Point3d pB);
+                    Point3d onEdge = point.ToCorePoint()
+                        .ProjectOnSegment(pA.ToCorePoint(), pB.ToCorePoint())
+                        .ToMulticadPoint();
 
                     ghostNode.TryModify(1);
                     ghostNode.Position = onEdge;
@@ -309,78 +298,6 @@ namespace TestWork.GraphApp.NCad.Commands
                     previousNode = ghostNode;
                 }
             }
-        }
-
-        private bool EdgeExists(Guid nodeA, Guid nodeB)
-        {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphEdge));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphEdge edge
-                    && edge.IsIncidentTo(nodeA)
-                    && edge.IsIncidentTo(nodeB))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private Point3d Project(Point3d point, Point3d segmentStart, Point3d segmentEnd)
-        {
-            return point.ToCorePoint()
-                .ProjectOnSegment(segmentStart.ToCorePoint(), segmentEnd.ToCorePoint())
-                .ToMulticadPoint();
-        }
-
-        private GraphEdge FindEdgeNear(Point3d point, double captureDistance, GraphEdge excludeEdge)
-        {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphEdge));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphEdge edge)
-                {
-                    // исключить призрак-ребро (сравниваем по NodeId концов — надёжнее чем по ID)
-                    if (excludeEdge != null
-                        && edge.FirstNodeId == excludeEdge.FirstNodeId
-                        && edge.SecondNodeId == excludeEdge.SecondNodeId)
-                        continue;
-
-                    if (TryGetNodePosition(edge.FirstNodeId, out var pA) &&
-                        TryGetNodePosition(edge.SecondNodeId, out var pB))
-                    {
-                        Point3d proj = Project(point, pA, pB);
-                        if (point.DistanceTo(proj) <= captureDistance)
-                            return edge;
-                    }
-                }
-            }
-            return null;
-        }
-
-        private bool TryGetNodePosition(Guid nodeId, out Point3d position)
-        {
-            position = Point3d.Origin;
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphNode));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphNode node && node.NodeId == nodeId)
-                {
-                    position = node.Position;
-                    return true;
-                }
-            }
-            return false;
         }
     }
 }
