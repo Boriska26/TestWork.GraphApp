@@ -3,6 +3,8 @@ using Multicad.DatabaseServices;
 using Multicad.Geometry;
 using Multicad.Runtime;
 using System.Drawing;
+using TestWork.GraphApp.Core.Algoritms;
+using TestWork.GraphApp.Core.Models;
 using TestWork.GraphApp.NCad.Objects;
 using GraphNode = TestWork.GraphApp.NCad.Objects.GraphNode;
 
@@ -10,6 +12,60 @@ namespace TestWork.GraphApp.NCad.Commands
 {
     public class GraphCommand
     {
+        [CommandMethod("TW_FINDPATH",CommandFlags.NoCheck)]
+        public void FindPath()
+        {
+            GraphNode startNode = SelectSingleNode("Выберите первый узел: ");
+            if (startNode == null) return;
+
+            GraphNode goalNode = SelectSingleNode("Выберите второй узел: ");
+            if (goalNode == null) return;
+
+            Graph graph = BuildGraphFromDrawing();
+
+            var finder = new DeykstraPathFinder();
+            IReadOnlyList<Guid> path = finder.Find(graph, startNode.NodeId, goalNode.NodeId);
+
+            if (path.Count == 0)
+            {
+                return;
+            }
+
+            HighlightPath(path);
+        }
+
+        private GraphNode SelectSingleNode(string prompt)
+        {
+            McObjectId id = McObjectManager.SelectObject(prompt);
+
+            return id.GetObject() as GraphNode;
+        }
+
+        private void HighlightPath(IReadOnlyList<Guid> path)
+        {
+            var edgeFilter = ObjectFilter.Create(true);
+            edgeFilter.AddType(typeof(GraphEdge));
+            var edgeIds = McObjectManager.SelectObjects(edgeFilter);
+
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                Guid a = path[i];
+                Guid b = path[i + 1];
+
+                foreach (var id in edgeIds)
+                {
+                    if (id.GetObject() is GraphEdge edge &&
+                        edge.IsIncidentTo(a) && edge.IsIncidentTo(b))
+                    {
+                        edge.TryModify(1);
+                        edge.DbEntity.Color = Color.Lime;   
+                        edge.DbEntity.Update();
+                        break;  
+                    }
+                }
+            }
+        }
+
         [CommandMethod("TW_GRAPHNODE", CommandFlags.NoCheck)]
         public void CreateNode()
         {
@@ -128,6 +184,41 @@ namespace TestWork.GraphApp.NCad.Commands
             }
 
             return null;
+        }
+
+        private Graph BuildGraphFromDrawing()
+        {
+            var graph = new Graph();
+
+            var nodePositions = new Dictionary<Guid, Point3d>();
+
+            var nodeFilter = ObjectFilter.Create(true);
+            nodeFilter.AddType(typeof(GraphNode));
+            foreach (var id in McObjectManager.SelectObjects(nodeFilter))
+            {
+                if (id.GetObject() is GraphNode node)
+                {
+                    graph.AddNode(node.NodeId);
+                    nodePositions[node.NodeId] = node.Position;
+                }
+            }
+
+            var edgeFilter = ObjectFilter.Create(true);
+            edgeFilter.AddType(typeof(GraphEdge));
+            foreach (var id in McObjectManager.SelectObjects(edgeFilter))
+            {
+                if (id.GetObject() is GraphEdge edge)
+                {
+                    if (nodePositions.TryGetValue(edge.FirstNodeId, out var p1) &&
+                        nodePositions.TryGetValue(edge.SecondNodeId, out var p2))
+                    {
+                        double length = p1.DistanceTo(p2);
+                        graph.AddEdge(edge.FirstNodeId, edge.SecondNodeId, length);
+                    }
+                }
+            }
+
+            return graph;
         }
     }
 }

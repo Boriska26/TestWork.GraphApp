@@ -21,6 +21,9 @@ namespace TestWork.GraphApp.NCad.Objects
             _secondNodeId = secondNodeId;
         }
 
+        public Guid FirstNodeId => _firstNodeId;
+        public Guid SecondNodeId => _secondNodeId;
+
         public override void OnDraw(GeometryBuilder dc)
         {
             dc.Clear();
