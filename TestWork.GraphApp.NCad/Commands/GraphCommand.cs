@@ -16,6 +16,7 @@ namespace TestWork.GraphApp.NCad.Commands
     public class GraphCommand
     {
         private readonly GraphQuery _graphQuery = new GraphQuery();
+        private readonly GraphObjectFactory _graphObjectFactory = new GraphObjectFactory();
 
         [CommandMethod("TW_FINDPATH", CommandFlags.NoCheck)]
         public void FindPath()
@@ -71,19 +72,6 @@ namespace TestWork.GraphApp.NCad.Commands
             }
         }
 
-        [CommandMethod("TW_GRAPHNODE", CommandFlags.NoCheck)]
-        public void CreateNode()
-        {
-            var jig = new InputJig();
-            InputResult res = jig.GetPoint("Выберите точку для узла: ");
-            if (res.Result != InputResult.ResultCode.Normal)
-            {
-                return;
-            }
-
-            CreateNode(res.Point);
-        }
-
         [CommandMethod("TW_BUILD_CIRCLE", CommandFlags.NoCheck)]
         public void BuildGraphCircle()
         {
@@ -137,29 +125,6 @@ namespace TestWork.GraphApp.NCad.Commands
 
             return id.GetObject() as GraphEdge;
         }
-
-        private GraphNode CreateNode(Point3d position)
-        {
-            var node = new GraphNode
-            {
-                Position = position,
-                Shape = NodeShape.CircleBlue
-            };
-            node.DbEntity.AddToCurrentDocument();
-
-            return node;
-        }
-
-        private GraphEdge CreateEdge(Guid firstNode, Guid secondNode)
-        {
-            var edge = new GraphEdge(firstNode, secondNode);
-            edge.DbObject.AddToCurrentDocument();
-            edge.TryModify(1);
-            edge.DbObject.Update();
-
-            return edge;
-        }
-
 
         private Graph BuildGraphFromDrawing()
         {
@@ -217,7 +182,7 @@ namespace TestWork.GraphApp.NCad.Commands
                 GraphEdge ghostEdge = null;
                 if (previousNode != null)
                 {
-                    ghostEdge = CreateEdge(previousNode.NodeId, ghostNode.NodeId);
+                    ghostEdge = _graphObjectFactory.CreateEdge(previousNode.NodeId, ghostNode.NodeId);
                 }
 
                 var jig = new InputJig();
@@ -264,7 +229,7 @@ namespace TestWork.GraphApp.NCad.Commands
                         ghostEdge.DbEntity.Erase();
                         if (!_graphQuery.EdgeExists(previousNode.NodeId, existing.NodeId))
                         {
-                            CreateEdge(previousNode.NodeId, existing.NodeId);
+                            _graphObjectFactory.CreateEdge(previousNode.NodeId, existing.NodeId);
                         }
                     }
                     previousNode = existing;
@@ -285,8 +250,8 @@ namespace TestWork.GraphApp.NCad.Commands
                     ghostNode.DbEntity.Update();
 
                     edgeToSplit.DbEntity.Erase();
-                    CreateEdge(splitA, ghostNode.NodeId);
-                    CreateEdge(ghostNode.NodeId, splitB);
+                    _graphObjectFactory.CreateEdge(splitA, ghostNode.NodeId);
+                    _graphObjectFactory.CreateEdge(ghostNode.NodeId, splitB);
 
                     previousNode = ghostNode;
                 }
