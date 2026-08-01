@@ -13,8 +13,6 @@ namespace TestWork.GraphApp.NCad.Objects
         private Guid _firstNodeId;
         private Guid _secondNodeId;
 
-        public GraphEdge() { }
-
         public GraphEdge(Guid firstNodeId, Guid secondNodeId)
         {
             _firstNodeId = firstNodeId;

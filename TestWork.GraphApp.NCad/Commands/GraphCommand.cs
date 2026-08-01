@@ -7,12 +7,23 @@ using TestWork.GraphApp.Core.Algoritms;
 using TestWork.GraphApp.Core.Models;
 using TestWork.GraphApp.NCad.Extensions;
 using TestWork.GraphApp.NCad.Objects;
+using TestWork.GraphApp.NCad.Services;
 using GraphNode = TestWork.GraphApp.NCad.Objects.GraphNode;
 
 namespace TestWork.GraphApp.NCad.Commands
 {
+
     public class GraphCommand
     {
+        private readonly GraphQuery _graphQuery = new GraphQuery();
+        private readonly GraphObjectFactory _graphObjectFactory = new GraphObjectFactory();
+        private readonly GraphBuilder _graphBuilder;
+
+        public GraphCommand()
+        {
+            _graphBuilder = new GraphBuilder(_graphQuery, _graphObjectFactory);
+        }
+
         [CommandMethod("TW_FINDPATH", CommandFlags.NoCheck)]
         public void FindPath()
         {
@@ -67,29 +78,16 @@ namespace TestWork.GraphApp.NCad.Commands
             }
         }
 
-        [CommandMethod("TW_GRAPHNODE", CommandFlags.NoCheck)]
-        public void CreateNode()
-        {
-            var jig = new InputJig();
-            InputResult res = jig.GetPoint("Выберите точку для узла: ");
-            if (res.Result != InputResult.ResultCode.Normal)
-            {
-                return;
-            }
-
-            CreateNode(res.Point);
-        }
-
         [CommandMethod("TW_BUILD_CIRCLE", CommandFlags.NoCheck)]
         public void BuildGraphCircle()
         {
-            BuildGraph(NodeShape.CircleBlue);
+            _graphBuilder.Build(NodeShape.CircleBlue);
         }
 
         [CommandMethod("TW_BUILD_TRIANGLE", CommandFlags.NoCheck)]
         public void BuildGraphTriangle()
         {
-            BuildGraph(NodeShape.TriangleRed);
+            _graphBuilder.Build(NodeShape.TriangleRed);
         }
 
         [CommandMethod("TW_EDGESTYLE", CommandFlags.NoCheck)]
@@ -134,47 +132,6 @@ namespace TestWork.GraphApp.NCad.Commands
             return id.GetObject() as GraphEdge;
         }
 
-        private GraphNode CreateNode(Point3d position)
-        {
-            var node = new GraphNode
-            {
-                Position = position,
-                Shape = NodeShape.CircleBlue
-            };
-            node.DbEntity.AddToCurrentDocument();
-
-            return node;
-        }
-
-        private GraphEdge CreateEdge(Guid firstNode, Guid secondNode)
-        {
-            var edge = new GraphEdge(firstNode, secondNode);
-            edge.DbObject.AddToCurrentDocument();
-            edge.TryModify(1);
-            edge.DbObject.Update();
-
-            return edge;
-        }
-
-        private GraphNode FindNodeNear(Point3d point, double captureRadius, Guid excludeNodeId)
-        {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphNode));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphNode node
-                    && node.NodeId != excludeNodeId
-                    && node.Position.DistanceTo(point) <= captureRadius)
-                {
-                    return node;
-                }
-            }
-
-            return null;
-        }
-
         private Graph BuildGraphFromDrawing()
         {
             var graph = new Graph();
@@ -208,179 +165,6 @@ namespace TestWork.GraphApp.NCad.Commands
             }
 
             return graph;
-        }
-
-        private GraphNode CreateNode(Point3d position, NodeShape shape)
-        {
-            var node = new GraphNode { Position = position, Shape = shape };
-            node.DbEntity.AddToCurrentDocument();
-
-            return node;
-        }
-
-        private void BuildGraph(NodeShape shape)
-        {
-            GraphNode previousNode = null;
-
-            while (true)
-            {
-                Point3d startPos = previousNode?.Position ?? Point3d.Origin;
-                GraphNode ghostNode = CreateNode(startPos, shape);
-
-                GraphEdge ghostEdge = null;
-                if (previousNode != null)
-                {
-                    ghostEdge = CreateEdge(previousNode.NodeId, ghostNode.NodeId);
-                }
-
-                var jig = new InputJig();
-                jig.ExcludeObject(ghostNode.ID);
-                if (ghostEdge != null)
-                {
-                    jig.ExcludeObject(ghostEdge.ID);
-                }
-
-                jig.MouseMove = (a, s) =>
-                {
-                    ghostNode.TryModify(1);
-                    ghostNode.Position = s.Point;
-                    ghostNode.DbEntity.Update();
-
-                    if (ghostEdge != null)
-                    {
-                        ghostEdge.TryModify(1);
-                        ghostEdge.DbEntity.Update();
-                    }
-                };
-
-                InputResult res = jig.GetPoint("Выберите точку для узла (Esc — завершить): ");
-
-                if (res.Result != InputResult.ResultCode.Normal)
-                {
-                    ghostNode.DbEntity.Erase();
-                    ghostEdge?.DbEntity.Erase();
-
-                    break;
-                }
-
-                Point3d point = res.Point;
-
-                GraphNode existing = FindNodeNear(point, GraphNode.Radius, ghostNode.NodeId);
-                GraphEdge edgeToSplit = FindEdgeNear(point, GraphNode.Radius, ghostEdge);
-
-                if (existing != null && existing.NodeId != previousNode?.NodeId)
-                {
-                    ghostNode.DbEntity.Erase();
-
-                    if (ghostEdge != null)
-                    {
-                        ghostEdge.DbEntity.Erase();
-                        if (!EdgeExists(previousNode.NodeId, existing.NodeId))
-                        {
-                            CreateEdge(previousNode.NodeId, existing.NodeId);
-                        }
-                    }
-                    previousNode = existing;
-                }
-                else if (edgeToSplit != null)
-                {
-                    Guid splitA = edgeToSplit.FirstNodeId;
-                    Guid splitB = edgeToSplit.SecondNodeId;
-
-                    TryGetNodePosition(splitA, out Point3d pA);
-                    TryGetNodePosition(splitB, out Point3d pB);
-                    Point3d onEdge = Project(point, pA, pB);
-
-                    ghostNode.TryModify(1);
-                    ghostNode.Position = onEdge;
-                    ghostNode.DbEntity.Update();
-
-                    edgeToSplit.DbEntity.Erase();
-                    CreateEdge(splitA, ghostNode.NodeId);
-                    CreateEdge(ghostNode.NodeId, splitB);
-
-                    previousNode = ghostNode;
-                }
-                else
-                {
-                    ghostNode.TryModify(1);
-                    ghostNode.Position = point;
-                    ghostNode.DbEntity.Update();
-                    previousNode = ghostNode;
-                }
-            }
-        }
-
-        private bool EdgeExists(Guid nodeA, Guid nodeB)
-        {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphEdge));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphEdge edge
-                    && edge.IsIncidentTo(nodeA)
-                    && edge.IsIncidentTo(nodeB))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private Point3d Project(Point3d point, Point3d segmentStart, Point3d segmentEnd)
-        {
-            return point.ToCorePoint()
-                .ProjectOnSegment(segmentStart.ToCorePoint(), segmentEnd.ToCorePoint())
-                .ToMulticadPoint();
-        }
-
-        private GraphEdge FindEdgeNear(Point3d point, double captureDistance, GraphEdge excludeEdge)
-        {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphEdge));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphEdge edge)
-                {
-                    // исключить призрак-ребро (сравниваем по NodeId концов — надёжнее чем по ID)
-                    if (excludeEdge != null
-                        && edge.FirstNodeId == excludeEdge.FirstNodeId
-                        && edge.SecondNodeId == excludeEdge.SecondNodeId)
-                        continue;
-
-                    if (TryGetNodePosition(edge.FirstNodeId, out var pA) &&
-                        TryGetNodePosition(edge.SecondNodeId, out var pB))
-                    {
-                        Point3d proj = Project(point, pA, pB);
-                        if (point.DistanceTo(proj) <= captureDistance)
-                            return edge;
-                    }
-                }
-            }
-            return null;
-        }
-
-        private bool TryGetNodePosition(Guid nodeId, out Point3d position)
-        {
-            position = Point3d.Origin;
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphNode));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphNode node && node.NodeId == nodeId)
-                {
-                    position = node.Position;
-                    return true;
-                }
-            }
-            return false;
         }
     }
 }
