@@ -29,6 +29,29 @@ namespace TestWork.GraphApp.Core
             return Math.Sqrt(dx * dx + dy * dy + dz * dz);
         }
 
+        public Point3D ProjectOnSegment(Point3D segmentStart, Point3D segmentEnd)
+        {
+            double segmentX = segmentEnd.X - segmentStart.X;
+            double segmentY = segmentEnd.Y - segmentStart.Y;
+            double segmentZ = segmentEnd.Z - segmentStart.Z;
+
+            double toPointX = X - segmentStart.X;
+            double toPointY = Y - segmentStart.Y;
+            double toPointZ = Z - segmentStart.Z;
+
+            double segmentLengthSquared = segmentX * segmentX + segmentY * segmentY + segmentZ * segmentZ;
+            if (segmentLengthSquared == 0)
+            {
+                return segmentStart;
+            }
+
+            double projectRatio = (toPointX * segmentX + toPointY * segmentY + toPointZ * segmentZ) / segmentLengthSquared;
+            projectRatio = Math.Max(0, Math.Min(1, projectRatio));
+
+            return new Point3D(segmentStart.X + projectRatio * segmentX, segmentStart.Y
+                + projectRatio * segmentY, segmentStart.Z + projectRatio * segmentZ);
+        }
+
         public bool Equals(Point3D other) => X == other.X && Y == other.Y && Z == other.Z;
 
         public override bool Equals([NotNullWhen(true)] object? obj)
