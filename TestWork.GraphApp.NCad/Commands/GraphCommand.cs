@@ -5,6 +5,7 @@ using Multicad.Runtime;
 using System.Drawing;
 using TestWork.GraphApp.Core.Algoritms;
 using TestWork.GraphApp.Core.Models;
+using TestWork.GraphApp.NCad.Extensions;
 using TestWork.GraphApp.NCad.Objects;
 using GraphNode = TestWork.GraphApp.NCad.Objects.GraphNode;
 
@@ -149,6 +150,8 @@ namespace TestWork.GraphApp.NCad.Commands
         {
             var edge = new GraphEdge(firstNode, secondNode);
             edge.DbObject.AddToCurrentDocument();
+            edge.TryModify(1);
+            edge.DbObject.Update();
 
             return edge;
         }
@@ -262,7 +265,8 @@ namespace TestWork.GraphApp.NCad.Commands
 
                 Point3d point = res.Point;
 
-                GraphNode existing = FindNodeNear(point, 5.0, ghostNode.NodeId)!;
+                GraphNode existing = FindNodeNear(point, GraphNode.Radius, ghostNode.NodeId);
+                GraphEdge edgeToSplit = FindEdgeNear(point, GraphNode.Radius, ghostEdge);
 
                 if (existing != null && existing.NodeId != previousNode?.NodeId)
                 {
@@ -277,6 +281,25 @@ namespace TestWork.GraphApp.NCad.Commands
                         }
                     }
                     previousNode = existing;
+                }
+                else if (edgeToSplit != null)
+                {
+                    Guid splitA = edgeToSplit.FirstNodeId;
+                    Guid splitB = edgeToSplit.SecondNodeId;
+
+                    TryGetNodePosition(splitA, out Point3d pA);
+                    TryGetNodePosition(splitB, out Point3d pB);
+                    Point3d onEdge = Project(point, pA, pB);
+
+                    ghostNode.TryModify(1);
+                    ghostNode.Position = onEdge;
+                    ghostNode.DbEntity.Update();
+
+                    edgeToSplit.DbEntity.Erase();
+                    CreateEdge(splitA, ghostNode.NodeId);
+                    CreateEdge(ghostNode.NodeId, splitB);
+
+                    previousNode = ghostNode;
                 }
                 else
                 {
@@ -304,6 +327,59 @@ namespace TestWork.GraphApp.NCad.Commands
                 }
             }
 
+            return false;
+        }
+
+        private Point3d Project(Point3d point, Point3d segmentStart, Point3d segmentEnd)
+        {
+            return point.ToCorePoint()
+                .ProjectOnSegment(segmentStart.ToCorePoint(), segmentEnd.ToCorePoint())
+                .ToMulticadPoint();
+        }
+
+        private GraphEdge FindEdgeNear(Point3d point, double captureDistance, GraphEdge excludeEdge)
+        {
+            var filter = ObjectFilter.Create(true);
+            filter.AddType(typeof(GraphEdge));
+            var ids = McObjectManager.SelectObjects(filter);
+
+            foreach (var id in ids)
+            {
+                if (id.GetObject() is GraphEdge edge)
+                {
+                    // исключить призрак-ребро (сравниваем по NodeId концов — надёжнее чем по ID)
+                    if (excludeEdge != null
+                        && edge.FirstNodeId == excludeEdge.FirstNodeId
+                        && edge.SecondNodeId == excludeEdge.SecondNodeId)
+                        continue;
+
+                    if (TryGetNodePosition(edge.FirstNodeId, out var pA) &&
+                        TryGetNodePosition(edge.SecondNodeId, out var pB))
+                    {
+                        Point3d proj = Project(point, pA, pB);
+                        if (point.DistanceTo(proj) <= captureDistance)
+                            return edge;
+                    }
+                }
+            }
+            return null;
+        }
+
+        private bool TryGetNodePosition(Guid nodeId, out Point3d position)
+        {
+            position = Point3d.Origin;
+            var filter = ObjectFilter.Create(true);
+            filter.AddType(typeof(GraphNode));
+            var ids = McObjectManager.SelectObjects(filter);
+
+            foreach (var id in ids)
+            {
+                if (id.GetObject() is GraphNode node && node.NodeId == nodeId)
+                {
+                    position = node.Position;
+                    return true;
+                }
+            }
             return false;
         }
     }
