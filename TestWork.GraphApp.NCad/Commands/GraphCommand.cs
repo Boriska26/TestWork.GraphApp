@@ -16,11 +16,12 @@ namespace TestWork.GraphApp.NCad.Commands
     public class GraphCommand
     {
         private readonly GraphQuery _graphQuery = new GraphQuery();
-        private readonly GraphObjectFactory _graphObjectFactory = new GraphObjectFactory();
+        private readonly GraphObjectFactory _graphObjectFactory;
         private readonly GraphBuilder _graphBuilder;
 
         public GraphCommand()
         {
+            _graphObjectFactory = new GraphObjectFactory(_graphQuery);
             _graphBuilder = new GraphBuilder(_graphQuery, _graphObjectFactory);
         }
 

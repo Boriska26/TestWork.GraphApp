@@ -4,7 +4,6 @@ using Multicad.DatabaseServices;
 using Multicad.Geometry;
 using Multicad.Runtime;
 using System.ComponentModel;
-using System.Drawing;
 
 namespace TestWork.GraphApp.NCad.Objects
 {
@@ -25,6 +24,7 @@ namespace TestWork.GraphApp.NCad.Objects
             set
             {
                 _position = value;
+                UpdateIncidentEdges();
                 DbEntity.Update();
             }
         }
@@ -137,15 +137,42 @@ namespace TestWork.GraphApp.NCad.Objects
         {
             var filter = ObjectFilter.Create(true);
             filter.AddType(typeof(GraphEdge));
-            var ids = McObjectManager.SelectObjects(filter); 
-            foreach(var id in ids)
+            var ids = McObjectManager.SelectObjects(filter);
+
+            foreach (var id in ids)
             {
-                if(id.GetObject() is GraphEdge edge && edge.IsIncidentTo(_nodeId))
+                if (id.GetObject() is GraphEdge edge && edge.IsIncidentTo(_nodeId))
                 {
-                    edge.TryModify(1);
-                    edge.DbEntity.Update();
+                    UpdateEdgePositions(edge);
                 }
             }
+        }
+
+        private void UpdateEdgePositions(GraphEdge edge)
+        {
+            if (TryGetNodePosition(edge.FirstNodeId, out Point3d start) &&
+                TryGetNodePosition(edge.SecondNodeId, out Point3d end))
+            {
+                edge.UpdatePositions(start, end);
+            }
+        }
+
+        private bool TryGetNodePosition(Guid nodeId, out Point3d position)
+        {
+            position = Point3d.Origin;
+            var filter = ObjectFilter.Create(true);
+            filter.AddType(typeof(GraphNode));
+            var ids = McObjectManager.SelectObjects(filter);
+
+            foreach (var id in ids)
+            {
+                if (id.GetObject() is GraphNode node && node.NodeId == nodeId)
+                {
+                    position = node.Position;
+                    return true;
+                }
+            }
+            return false;
         }
 
         public override void OnErase()

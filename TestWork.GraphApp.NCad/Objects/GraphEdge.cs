@@ -1,17 +1,21 @@
-﻿using Multicad;
+﻿using Imapimgd.Interfaces;
+using Multicad;
 using Multicad.CustomObjectBase;
 using Multicad.DatabaseServices;
 using Multicad.Geometry;
 using Multicad.Runtime;
-using System.Drawing;
 
 namespace TestWork.GraphApp.NCad.Objects
 {
     [CustomEntity("D7983907-8A95-4A2A-A418-4BE05A8082FB", "GraphEdge", "ребро графа")]
-    public class GraphEdge : McCustomBase, IMcSerializable
+    public class GraphEdge : McCustomBase, IMcSerializable, IMcParameterRedefinitions
     {
         private Guid _firstNodeId;
         private Guid _secondNodeId;
+        private Point3d _startPoint;
+        private Point3d _endPoint;
+
+        public GraphEdge() : base() { }
 
         public GraphEdge(Guid firstNodeId, Guid secondNodeId)
         {
@@ -20,56 +24,65 @@ namespace TestWork.GraphApp.NCad.Objects
         }
 
         public Guid FirstNodeId => _firstNodeId;
+
         public Guid SecondNodeId => _secondNodeId;
+
+        public void UpdatePositions(Point3d start, Point3d end)
+        {
+            TryModify(1);
+            _startPoint = start;
+            _endPoint = end;
+            DbEntity.Update();
+        }
+
+        public override string GetProperyNameByGSMarker(int iGSMarker)
+        {
+            return base.GetProperyNameByGSMarker(iGSMarker);
+        }
+
+        public override bool OnMatchProperties(McEntity EntFrom, MatchPropEnum matchPropFlags)
+        {
+            return base.OnMatchProperties(EntFrom, matchPropFlags);
+        }
+
+        public override void TryModify(uint dwChangesType)
+        {
+            base.TryModify(dwChangesType);
+        }
 
         public override void OnDraw(GeometryBuilder dc)
         {
+            base.OnDraw(dc);
             dc.Clear();
 
-            if (TryGetNodePosition(_firstNodeId, out Point3d p1) &&
-                TryGetNodePosition(_secondNodeId, out Point3d p2))
-            {
-                dc.Color = McDbEntity.ByObject;
-                dc.LineWidth = DbEntity.LineWeight;
-                dc.LineType = DbEntity.LineType;
-                dc.DrawPolyline(new[] { p1, p2 });
-            }
+            dc.Color = McDbEntity.ByObject;
+            dc.LineWidth = DbEntity.LineWeight;
+            dc.LineType = DbEntity.LineType;
+            dc.StrLineType = DbEntity.LineTypeName;
+            dc.DrawLine(_startPoint, _endPoint);
         }
 
-        private bool TryGetNodePosition(Guid nodeId, out Point3d position)
+        public override UpdateLevel OnQueryUpdateLevel()
         {
-            position = Point3d.Origin;
-            foreach (var node in EnumerateGraphNodes())
-            {
-                if (node.NodeId == nodeId)
-                {
-                    position = node.Position;
-
-                    return true;
-                }
-            }
-
-            return false;
+            return base.OnQueryUpdateLevel();
         }
 
-        private IEnumerable<GraphNode> EnumerateGraphNodes()
+        public override hresult OnUpdate()
         {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphNode));
-            List<McObjectId> ids = McObjectManager.SelectObjects(filter);
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphNode node)
-                {
-                    yield return node;
-                }
-            }
+            var result = base.OnUpdate();
+            return result;
         }
 
         public override hresult OnMcSerialization(McSerializationInfo info)
         {
             info.Add("FirstNodeId", _firstNodeId.ToString());
             info.Add("SecondNodeId", _secondNodeId.ToString());
+            info.Add("StartX", _startPoint.X);
+            info.Add("StartY", _startPoint.Y);
+            info.Add("StartZ", _startPoint.Z);
+            info.Add("EndX", _endPoint.X);
+            info.Add("EndY", _endPoint.Y);
+            info.Add("EndZ", _endPoint.Z);
 
             return hresult.s_Ok;
         }
@@ -78,10 +91,24 @@ namespace TestWork.GraphApp.NCad.Objects
         {
             string firstNodeId;
             string secondNodeId;
+            double startX;
+            double startY;
+            double startZ;
+            double endX;
+            double endY;
+            double endZ;
 
+            info.GetValue("StartX", out startX);
+            info.GetValue("StartY", out startY);
+            info.GetValue("StartZ", out startZ);
+            info.GetValue("EndX", out endX);
+            info.GetValue("EndY", out endY);
+            info.GetValue("EndZ", out endZ);
             info.GetValue("FirstNodeId", out firstNodeId);
             info.GetValue("SecondNodeId", out secondNodeId);
 
+            _startPoint = new Point3d(startX, startY, startZ);
+            _endPoint = new Point3d(endX, endY, endZ);
             _firstNodeId = Guid.Parse(firstNodeId);
             _secondNodeId = Guid.Parse(secondNodeId);
 
@@ -90,23 +117,9 @@ namespace TestWork.GraphApp.NCad.Objects
 
         public bool IsIncidentTo(Guid nodeId) => _firstNodeId == nodeId || _secondNodeId == nodeId;
 
-        public static void ApplyStyleToAllEdges(Color color, int lineWeight, int lineType)
+        public List<int> GetRedefinitions()
         {
-            var filter = ObjectFilter.Create(true);
-            filter.AddType(typeof(GraphEdge));
-            var ids = McObjectManager.SelectObjects(filter);
-
-            foreach (var id in ids)
-            {
-                if (id.GetObject() is GraphEdge edge)
-                {
-                    edge.TryModify(1);
-                    edge.DbEntity.Color = color;
-                    edge.DbEntity.LineType = lineType;
-                    edge.DbEntity.LineWeight = lineWeight;
-                    edge.DbEntity.Update();
-                }
-            }
+            throw new NotImplementedException();
         }
     }
 }
