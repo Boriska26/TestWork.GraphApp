@@ -15,6 +15,14 @@ namespace TestWork.GraphApp.NCad.Objects
         private Guid _nodeId = Guid.NewGuid();
         private Point3d _position = Point3d.Origin;
         private NodeShape _shape = NodeShape.CircleBlue;
+        private string _attachedFileName = "";
+        private byte[] _attachedFileData = null;
+
+        public GraphNode() : base() { }
+
+        public bool HasAttachedFile => _attachedFileData != null && _attachedFileData.Length > 0;
+
+        public string AttachedFileName => _attachedFileName;
 
         public Guid NodeId => _nodeId;
 
@@ -32,7 +40,6 @@ namespace TestWork.GraphApp.NCad.Objects
         [DisplayName("Форма узла")]
         [Description("Тип узла: cний круг или красный треугольник")]
         [Category("Граф")]
-        //TODO в палитре не показывается имя shape
         public NodeShape Shape
         {
             get => _shape;
@@ -44,6 +51,19 @@ namespace TestWork.GraphApp.NCad.Objects
                 }
                 _shape = value;
             }
+        }
+
+        public void AttachFile(string filePath)
+        {
+            if (!TryModify()) return;
+            _attachedFileName = Path.GetFileName(filePath);
+            _attachedFileData = File.ReadAllBytes(filePath);
+        }
+
+        public void ExtractFile(string targetPath)
+        {
+            if (_attachedFileData == null) return;
+            File.WriteAllBytes(targetPath, _attachedFileData);
         }
 
         private bool TryModify()
@@ -109,6 +129,9 @@ namespace TestWork.GraphApp.NCad.Objects
             info.Add("PosX", _position.X);
             info.Add("PosY", _position.Y);
             info.Add("PosZ", _position.Z);
+            info.Add("FileName", _attachedFileName ?? "");
+            info.Add("FileData", _attachedFileData ?? new byte[0]);
+
             return hresult.s_Ok;
         }
 
@@ -119,15 +142,21 @@ namespace TestWork.GraphApp.NCad.Objects
             double x;
             double y;
             double z;
+            string fileName;
+            byte[] fileData;
 
             info.GetValue("NodeId", out nodeId);
             info.GetValue("Shape", out shape);
             info.GetValue("PosX", out x);
             info.GetValue("PosY", out y);
             info.GetValue("PosZ", out z);
+            info.GetValue("FileName", out fileName);
+            info.GetValue("FileData", out fileData);
 
             _nodeId = Guid.Parse(nodeId);
             _shape = (NodeShape)shape;
+            _attachedFileName = fileName ?? "";
+            _attachedFileData = (fileData != null && fileData.Length > 0) ? fileData : null;
             _position = new Point3d(x, y, z);
 
             return hresult.s_Ok;

@@ -97,7 +97,6 @@ namespace TestWork.GraphApp.NCad.Objects
             double endX;
             double endY;
             double endZ;
-
             info.GetValue("StartX", out startX);
             info.GetValue("StartY", out startY);
             info.GetValue("StartZ", out startZ);

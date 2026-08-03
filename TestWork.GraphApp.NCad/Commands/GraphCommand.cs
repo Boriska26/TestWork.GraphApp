@@ -2,10 +2,8 @@
 using Multicad.DatabaseServices;
 using Multicad.Geometry;
 using Multicad.Runtime;
-using System.Drawing;
 using TestWork.GraphApp.Core.Algoritms;
 using TestWork.GraphApp.Core.Models;
-using TestWork.GraphApp.NCad.Extensions;
 using TestWork.GraphApp.NCad.Objects;
 using TestWork.GraphApp.NCad.Services;
 using GraphNode = TestWork.GraphApp.NCad.Objects.GraphNode;
@@ -89,6 +87,42 @@ namespace TestWork.GraphApp.NCad.Commands
         public void BuildGraphTriangle()
         {
             _graphBuilder.Build(NodeShape.TriangleRed);
+        }
+
+        [CommandMethod("TW_ATTACHFILE", CommandFlags.NoCheck)]
+        public void AttachFile()
+        {
+            GraphNode node = SelectSingleNode("Выберите узел для прикрепления файла: ");
+            if (node == null) return;
+
+            using (var dlg = new System.Windows.Forms.OpenFileDialog())
+            {
+                if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    node.AttachFile(dlg.FileName);
+                }
+            }
+        }
+
+        [CommandMethod("TW_EXTRACTFILE", CommandFlags.NoCheck)]
+        public void ExtractFile()
+        {
+            GraphNode node = SelectSingleNode("Выберите узел с файлом: ");
+            if (node == null) return;
+
+            if (!node.HasAttachedFile)
+            {
+                return;
+            }
+
+            using (var dlg = new System.Windows.Forms.SaveFileDialog())
+            {
+                dlg.FileName = node.AttachedFileName;
+                if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    node.ExtractFile(dlg.FileName);
+                }
+            }
         }
 
         [CommandMethod("TW_EDGESTYLE", CommandFlags.NoCheck)]
